@@ -16,6 +16,8 @@ check:
 	$(GOOSE) check tests/overloads.goose
 	$(GOOSE) check examples/status.goose
 	$(GOOSE) check bench/driver.goose
+	$(GOOSE) check bench/consumer/phases.goose
+	python3 -m unittest discover -s bench/consumer -p 'test_*.py'
 test: test-oracle
 	mkdir -p .build
 	$(GOOSE) run tests/api.goose

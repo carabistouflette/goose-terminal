@@ -33,8 +33,9 @@ A final review covers the complete code/test/documentation package.
 `make bench-smoke` exercises fourteen workload/memory-mode pairs without speed
 thresholds. The benchmark recorder retains raw samples and provenance; its
 measurements are microbenchmarks, not comparative speed or allocation claims.
-No live terminal, native capability probe, partial-write sink, or Unicode width
-behavior is claimed or tested because those are outside the core contract.
+That original core-only suite does not exercise terminal probes or writes; the
+optional adapter coverage is recorded below. Unicode display width is outside
+the contract of both modules.
 
 Final checks also passed from a fresh standalone local Git clone using the same
 external pinned compiler (`make check test`). Final oracle fixtures pass 9157
@@ -57,3 +58,7 @@ broken-pipe signal and bytes already written before restoration fails.
 The adapter remains qualified on Linux x86-64 only. Work/byte budgets are not
 wall-time guarantees on blocking descriptors. Abrupt termination and concurrent
 writers cannot provide transactional terminal restoration.
+
+Optional native adapter checks and ASan/UBSan pass with GCC and Clang. CI
+maintains both compiler paths. The sanitizer wrapper applies non-PIE link flags
+only when linking so Clang package compilation remains warning-clean.
