@@ -19,3 +19,7 @@ statuses; independent correctness tests validate content. These are single-libra
 microbenchmarks, not allocations counts, terminal I/O timings or comparative
 claims. Run order is fixed; variation and order effects must be considered.
 No optimization or speed claim should rely on the smoke recording.
+
+An [initial local recording](results/initial/README.md) retains all seventy
+samples and the verified source/compiler/binary manifest. The recorder captures
+identities before compilation and checks they remain unchanged after all runs.

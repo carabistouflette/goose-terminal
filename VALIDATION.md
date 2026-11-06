@@ -34,3 +34,11 @@ thresholds. The benchmark recorder retains raw samples and provenance; its
 measurements are microbenchmarks, not comparative speed or allocation claims.
 No live terminal, native capability probe, partial-write sink, or Unicode width
 behavior is claimed or tested because those are outside the core contract.
+
+Final checks also passed from a fresh standalone local Git clone using the same
+external pinned compiler (`make check test`). Final oracle fixtures pass 9157
+cases in each of optimized, checked-debug and sanitized binaries. Review fixes
+include accepted exact aggregate-input/output table budgets and benchmark
+identity checks before/after recording. Raw initial samples are retained in
+bench/results/initial; measured source is identified independently of later
+measurement-documentation commits.
