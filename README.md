@@ -4,7 +4,9 @@ Experimental bounded terminal rendering for Goose. Apache-2.0.
 
 The first release provides safe styled lines, rectangular ASCII tables, progress
 bars and spinner frames. Rendering replaces caller-owned output; errors leave
-it empty. No terminal I/O, environment reads, timers, native code or global state.
+it empty. The core has no terminal I/O, environment reads, timers, native code or global
+state. An [optional POSIX adapter](native/README.md) supplies detection and checked
+writes without changing the core interface.
 
 ## Design contract
 
@@ -35,7 +37,7 @@ native dependency is added by the library. From this standalone directory:
 
 ```sh
 make setup
-make check test test-debug test-sanitize bench-smoke
+make check test test-debug test-sanitize test-posix test-posix-sanitize bench-smoke
 .toolchain/goose/build/goose run examples/status.goose
 ```
 
@@ -111,5 +113,9 @@ See [validation](VALIDATION.md), [security](SECURITY.md), and
 [benchmarks](bench/README.md). The core is designed without platform-specific
 calls; only Linux x86-64 has been executed locally. Other platforms remain
 unqualified. No full-screen TUI, Unicode display width, raw ANSI passthrough,
-automatic terminal probing, timers, truncation, sink or concurrent writer is
-included. No release has been published.
+timers, truncation or concurrent writer is included. The optional POSIX module
+provides explicit terminal probing and one-step checked writes. No release has
+been published.
+
+The POSIX adapter is opt-in: `import posix from "/path/to/goose-terminal";`.
+See its [contract and limitations](native/README.md) before using live output.

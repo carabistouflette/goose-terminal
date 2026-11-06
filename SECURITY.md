@@ -1,7 +1,10 @@
 # Security
 
-This experimental library renders arbitrary bytes into bounded buffers. It does
-not redact secrets, perform I/O, or authenticate terminal capabilities. Only the
+This experimental library renders arbitrary bytes into bounded buffers. The rendering core does
+not redact secrets, perform I/O, or authenticate terminal capabilities. The
+optional POSIX adapter probes borrowed stdout/stderr and performs checked raw
+byte writes; it does not escape input itself. Pass renderer output to it, and
+read native/README.md for blocking and signal-cleanup requirements. Only the
 pinned compiler and actually tested platforms are qualified. Applications own
 terminal detection, synchronization, output writes and error handling.
 

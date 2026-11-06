@@ -4,10 +4,13 @@ GOOSE ?= .toolchain/goose/build/goose
 setup:
 	./scripts/setup-goose.sh
 format:
-	$(GOOSE) format terminal.goose tests examples bench
+	$(GOOSE) format terminal.goose posix.goose tests examples bench
 check:
-	$(GOOSE) format --check terminal.goose tests examples bench
+	$(GOOSE) format --check terminal.goose posix.goose tests examples bench
 	$(GOOSE) check terminal.goose
+	$(GOOSE) check posix.goose
+	$(GOOSE) check tests/posix.goose
+	$(GOOSE) check examples/posix_status.goose
 	$(GOOSE) check tests/api.goose
 	$(GOOSE) check tests/oracle.goose
 	$(GOOSE) check tests/overloads.goose
@@ -45,3 +48,18 @@ bench-smoke:
 	mkdir -p .build
 	$(GOOSE) build bench/driver.goose -O2 --cc gcc -o .build/bench
 	./.build/bench 10
+
+.PHONY: test-posix test-posix-sanitize
+test-posix:
+	mkdir -p .build
+	$(GOOSE) check posix.goose
+	$(GOOSE) build tests/posix.goose -O2 -o .build/posix
+	python3 tests/posix.py .build/posix
+	$(CC) -std=c11 -Wall -Wextra -Werror -pthread native/posix.c tests/native.c -Wl,--wrap=write,--wrap=pthread_sigmask,--wrap=sigtimedwait -o .build/native-test
+	./.build/native-test
+test-posix-sanitize:
+	mkdir -p .build
+	$(GOOSE) build tests/posix.goose --standalone --debug --no-bce --cc ./scripts/sanitizer-cc.sh -o .build/posix-sanitize
+	python3 tests/posix.py .build/posix-sanitize
+	$(CC) -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-sanitize-recover=all -fno-pie -no-pie native/posix.c tests/native.c -Wl,--wrap=write,--wrap=pthread_sigmask,--wrap=sigtimedwait -o .build/native-sanitize
+	./.build/native-sanitize

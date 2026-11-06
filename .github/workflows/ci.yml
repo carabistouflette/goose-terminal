@@ -14,4 +14,4 @@ jobs:
           path: .toolchain
           key: goose-${{ runner.os }}-${{ hashFiles('GOOSE_REVISION', 'scripts/setup-goose.sh') }}
       - run: make setup
-      - run: make check test test-debug test-sanitize bench-smoke
+      - run: make check test test-debug test-sanitize test-posix test-posix-sanitize bench-smoke

@@ -5,7 +5,7 @@ Commits (`fix: reject overflowing dimensions`). Each commit is one coherent
 change. Do not commit binaries, caches, credentials, or private workspace notes.
 
 Use the exact compiler in GOOSE_REVISION. Run `make setup`, then
-`make format check test test-debug test-sanitize bench-smoke`. An existing pinned
+`make format check test test-debug test-sanitize test-posix test-posix-sanitize bench-smoke`. An existing pinned
 compiler can be supplied with `GOOSE=/absolute/path/to/goose`.
 
 Keep the interface small, rendering deterministic, buffers caller-owned, and
