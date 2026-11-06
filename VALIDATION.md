@@ -2,7 +2,8 @@
 
 Local validation uses Linux x86-64 and Goose
 `eadca409f68210893f366e60d0c2f0dc29a339be`. The compiler source was clean at
-validation. No other platform is qualified and remote CI has not run yet.
+validation. No other platform is qualified. Remote CI was not run as part of this local
+validation snapshot; check the public repository Actions for subsequent runs.
 
 `make check test test-debug test-sanitize` covers formatting, source checks,
 JIT API/overload execution, optimized API/oracle binaries, checked debug API/oracle
