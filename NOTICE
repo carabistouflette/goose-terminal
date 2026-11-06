@@ -1,0 +1,6 @@
+goose-terminal
+Copyright 2026 goose-terminal contributors
+
+Built with the Goose compiler and standard library by Wouter van Oortmerssen
+and Goose contributors (Apache-2.0). Compiler revision is in GOOSE_REVISION.
+https://github.com/aardappel/goose
