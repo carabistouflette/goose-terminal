@@ -4,3 +4,6 @@ Copyright 2026 goose-terminal contributors
 Built with the Goose compiler and standard library by Wouter van Oortmerssen
 and Goose contributors (Apache-2.0). Compiler revision is in GOOSE_REVISION.
 https://github.com/aardappel/goose
+
+Compiler bootstrap cleanliness checks in scripts/setup-goose.sh are adapted
+from goose-glob (Apache-2.0), copyright 2026 goose-glob contributors.

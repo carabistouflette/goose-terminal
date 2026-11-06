@@ -81,6 +81,12 @@ def fixtures():
         for value in (0, 27, 65, 92, 255):
             for op in (0, 2, 3):
                 add(op, [bytes([value])*size])
+    for width in range(1, 257):
+        for total in (3, MAX):
+            for step in (1, width//2, width):
+                threshold = (total*step + width-1)//width
+                for completed in (max(0, threshold-1), threshold, min(total, threshold+1)):
+                    add(2, [b''], a=completed, b=total, c=width, columns=512)
     for total in (1, 2, 3, 100, MAX // 2, MAX-1, MAX):
         for completed in (0, 1, total//2, total-1, total):
             for width in (1, 2, 3, 20, 255, 256):
