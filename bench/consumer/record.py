@@ -15,6 +15,7 @@ import platform
 import pty
 import random
 import selectors
+import signal
 import struct
 import subprocess
 import tempfile
@@ -31,12 +32,26 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def captured(args, *, cwd=None, env=None):
+    proc = subprocess.Popen([str(x) for x in args], cwd=cwd, env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    try:
+        stdout, stderr = proc.communicate(timeout=180)
+    except BaseException:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate(timeout=10)
+        raise
+    return proc.returncode, stdout, stderr
+
+
 def command(args, *, cwd=None, env=None):
-    result = subprocess.run([str(x) for x in args], cwd=cwd, env=env,
-                            capture_output=True, timeout=180)
-    if result.returncode:
-        raise RuntimeError(f'command failed ({result.returncode}): {args}\n{result.stdout!r}\n{result.stderr!r}')
-    return result.stdout
+    code, stdout, stderr = captured(args, cwd=cwd, env=env)
+    if code:
+        raise RuntimeError(f'command failed ({code}): {args}\n{stdout!r}\n{stderr!r}')
+    return stdout
 
 
 def source_identity(root):
@@ -64,8 +79,8 @@ def invoke(honk, project, env, workload, mode):
             'never' if mode == 'never' else 'always' if mode == 'plain' else 'auto']
     if mode != 'pty':
         start = time.perf_counter_ns()
-        result = subprocess.run(args, cwd=project, env=env, capture_output=True, timeout=180)
-        return result.returncode, result.stdout, result.stderr, time.perf_counter_ns()-start
+        code, stdout, stderr = captured(args, cwd=project, env=env)
+        return code, stdout, stderr, time.perf_counter_ns()-start
     master, slave = pty.openpty()
     attrs = termios.tcgetattr(slave)
     attrs[1] &= ~termios.OPOST
@@ -76,7 +91,7 @@ def invoke(honk, project, env, workload, mode):
     selector = selectors.DefaultSelector()
     try:
         start = time.perf_counter_ns()
-        proc = subprocess.Popen(args, cwd=project, env=env, stdout=subprocess.PIPE, stderr=slave)
+        proc = subprocess.Popen(args, cwd=project, env=env, stdout=subprocess.PIPE, stderr=slave, start_new_session=True)
         os.close(slave); slave = -1
         for fd, name in ((proc.stdout.fileno(), 'stdout'), (master, 'stderr')):
             os.set_blocking(fd, False); selector.register(fd, selectors.EVENT_READ, name)
@@ -106,7 +121,11 @@ def invoke(honk, project, env, workload, mode):
         selector.close()
         if proc:
             if proc.poll() is None:
-                proc.kill(); proc.wait(timeout=10)
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.wait(timeout=10)
             proc.stdout.close()
         if slave >= 0:
             os.close(slave)
