@@ -43,3 +43,17 @@ include accepted exact aggregate-input/output table budgets and benchmark
 identity checks before/after recording. Raw initial samples are retained in
 bench/results/initial; measured source is identified independently of later
 measurement-documentation commits.
+
+## Optional POSIX adapter
+
+`make test-posix test-posix-sanitize` adds real PTY snapshots for width, TERM,
+NO_COLOR, redirected output, resize and controlled cancellation. The native
+harness runs with strict compiler warnings and ASan/UBSan, exercising actual
+short writes/full pipes/broken pipes and injected EINTR/EAGAIN/I/O errors. It
+verifies descriptor flags, signal dispositions, original masks and preexisting
+pending SIGPIPE are preserved. Cleanup-failure cases cover both a real pending
+broken-pipe signal and bytes already written before restoration fails.
+
+The adapter remains qualified on Linux x86-64 only. Work/byte budgets are not
+wall-time guarantees on blocking descriptors. Abrupt termination and concurrent
+writers cannot provide transactional terminal restoration.

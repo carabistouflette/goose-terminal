@@ -16,3 +16,9 @@ expected versus observed behavior. Do not include credentials or personal data.
 Keep exploit details private until a fix or coordinated disclosure is ready.
 Security fixes target main and the latest release once releases exist; older
 pins are not separately maintained. No response-time guarantee is made.
+
+The optional POSIX writer leaves borrowed descriptor flags and process-wide
+signal dispositions unchanged. Blocking descriptors can block indefinitely.
+Cleanup failure is a separate fatal thread-state outcome; see native/README.md.
+The raw writer accepts bytes without sanitizing them; only renderer output has
+the documented escaping contract.
