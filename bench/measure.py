@@ -18,6 +18,17 @@ def run(args):
     return subprocess.check_output(args, cwd=ROOT, text=True, timeout=180)
 
 
+def identity(compiler):
+    files = ['terminal.goose', 'bench/driver.goose', 'bench/measure.py', 'GOOSE_REVISION']
+    return dict(source_commit=run(['git', 'rev-parse', 'HEAD']).strip(),
+                source_status=run(['git', 'status', '--porcelain']),
+                sha256={p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in files},
+                compiler_expected_revision=(ROOT/'GOOSE_REVISION').read_text().strip(),
+                compiler_version=run([str(compiler), '--version']).strip(),
+                compiler_binary_sha256=hashlib.sha256(compiler.read_bytes()).hexdigest(),
+                c_compiler=run(['gcc', '--version']))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--goose', required=True, type=Path)
@@ -31,7 +42,9 @@ def main():
     output = args.output.resolve(); output.mkdir(parents=True, exist_ok=False)
     binary = output / 'bench'
     flags = ['-O2', '--cc', 'gcc']
+    before = identity(compiler)
     run([str(compiler), 'build', 'bench/driver.goose', *flags, '-o', str(binary)])
+    binary_hash = hashlib.sha256(binary.read_bytes()).hexdigest()
     samples = []
     for batch in range(args.runs):
         raw = run([str(binary), str(args.iterations)])
@@ -44,15 +57,11 @@ def main():
                 raise SystemExit('invalid benchmark sample')
             samples.append(dict(batch=batch, workload=name, mode=mode,
                                 iterations=int(iterations), elapsed_ns=int(elapsed), checksum=int(checksum)))
-    files = ['terminal.goose', 'bench/driver.goose', 'bench/measure.py', 'GOOSE_REVISION']
-    manifest = dict(timestamp_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                    source_commit=run(['git', 'rev-parse', 'HEAD']).strip(),
-                    source_status=run(['git', 'status', '--porcelain']),
-                    sha256={p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in files},
-                    compiler_revision=(ROOT/'GOOSE_REVISION').read_text().strip(),
-                    compiler_version=run([str(compiler), '--version']).strip(),
-                    compiler_binary_sha256=hashlib.sha256(compiler.read_bytes()).hexdigest(),
-                    c_compiler=run(['gcc', '--version']), flags=flags, platform=platform.platform(),
+    if identity(compiler) != before or hashlib.sha256(binary.read_bytes()).hexdigest() != binary_hash:
+        raise SystemExit('source, compiler, or measured binary changed during recording; raw samples retained, no accepted manifest')
+    manifest = dict(**before, timestamp_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                    measured_binary_sha256=binary_hash,
+                    flags=flags, platform=platform.platform(),
                     machine=platform.machine(), processor=platform.processor(),
                     cpuinfo=Path('/proc/cpuinfo').read_text() if Path('/proc/cpuinfo').exists() else None,
                     affinity='uncontrolled', samples=samples)

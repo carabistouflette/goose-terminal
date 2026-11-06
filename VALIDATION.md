@@ -13,7 +13,7 @@ Goose's mmap-backed data stacks do not expose every logical bound to ASan.
 
 The independent Python oracle uses arbitrary-precision multiplication/division
 for progress, independently spells all escaped bytes, and constructs padded
-tables. Seed `0x6005e` produces 9154 cases per binary, including every byte,
+tables. Seed `0x6005e` produces 9157 cases per binary, including every byte,
 all styles, widths 1..256, values around fill thresholds, i64 extrema,
 invalid dimensions, row/cell/byte limits and error output clearing. Every
 operation starts with a sentinel output to catch stale/partial failure output.

@@ -104,6 +104,11 @@ def fixtures():
             for c in (MIN, -1, 0, 1, 256, 257, MAX):
                 add(2, [b''], a=a, b=b, c=c)
     # Exact aggregate and row budgets; exact widths and post-escape sizing.
+    exact_aggregate = [b'a'*256]*256
+    add(1, exact_aggregate, a=1, columns=512)
+    add(1, exact_aggregate[:-1] + [b'a'*257], a=1, columns=512)
+    exact_output = [b'x'*509, b''] + [b'', b'']*255
+    add(1, exact_output, a=2, columns=512)
     for count in (16, 17):
         add(1, [b'a'*4096]*count, a=1, columns=512)
     for rows in (255, 256, 257):

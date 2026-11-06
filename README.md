@@ -20,8 +20,9 @@ it empty. No terminal I/O, environment reads, timers, native code or global stat
 - Tables take flat row-major cells and a column count; widths include escape
   spellings and two spaces between columns. Oversized layouts are rejected,
   never silently truncated. Empty tables are valid with a valid column count.
-- Tables and live frames reserve the final terminal column, begin with CR + erase-line,
-  and only a final frame ends with newline. Plain frames always end in newline.
+- Tables and live frames reserve the final terminal column. Each table row ends
+  with newline. Live frames begin with CR + erase-line, and only a final live
+  frame ends with newline. Plain frames always end in newline.
   Serialize writes, re-probe after resize, finish on cancellation where possible,
   and handle partial writes yourself. No renderer can restore a failed sink.
 - Inputs must not borrow from output. Goose checks ordinary source ownership;
