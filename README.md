@@ -114,8 +114,30 @@ See [validation](VALIDATION.md), [security](SECURITY.md), and
 calls; only Linux x86-64 has been executed locally. Other platforms remain
 unqualified. No full-screen TUI, Unicode display width, raw ANSI passthrough,
 timers, truncation or concurrent writer is included. The optional POSIX module
-provides explicit terminal probing and one-step checked writes. No release has
-been published.
+provides explicit terminal probing and one-step checked writes. The API may
+change before 1.0.
 
 The POSIX adapter is opt-in: `import posix from "/path/to/goose-terminal";`.
 See its [contract and limitations](native/README.md) before using live output.
+
+## Pinned package imports
+
+Core-only consumers can declare:
+
+```goose
+import terminal from "carabistouflette/goose-terminal@v0.1.0-alpha.1";
+```
+
+For the optional adapter, one declaration loads both namespaces:
+
+```goose
+import posix from "carabistouflette/goose-terminal@v0.1.0-alpha.1";
+// terminal_posix::snapshot / write_step and terminal:: renderers are available.
+```
+
+When using Honk, declare one `posix` dependency for the core plus adapter. Avoid
+declaring two aliases for the same source: Honk stages aliases independently.
+Honk's validated consumer uses an independently pinned vendored snapshot with
+`--progress auto|always|never` (default never). Complete snapshots preserve child
+diagnostics; they do not animate over child output. See the consumer profiling
+instructions in [bench/consumer](bench/consumer/README.md).

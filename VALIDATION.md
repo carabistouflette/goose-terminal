@@ -62,3 +62,9 @@ writers cannot provide transactional terminal restoration.
 Optional native adapter checks and ASan/UBSan pass with GCC and Clang. CI
 maintains both compiler paths. The sanitizer wrapper applies non-PIE link flags
 only when linking so Clang package compilation remains warning-clean.
+
+An anonymous HTTPS clone of the public candidate passed `make check test-posix`
+with the pinned compiler. The real Honk consumer passed its full normal suite,
+including default-output compatibility, self-packaging, seven PTY/redirect/failure
+regressions and progress-enabled SIGINT cleanup. Publication checks qualify
+tagged public imports separately from these local and clone checks.

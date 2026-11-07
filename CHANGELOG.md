@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.0-alpha.1
 
 - Optional POSIX terminal detection and checked one-step writes with thread-local
   SIGPIPE protection and explicit partial/error outcomes.
