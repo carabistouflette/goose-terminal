@@ -9,6 +9,7 @@ check:
 	$(GOOSE) format --check terminal.goose posix.goose tests examples bench fuzz
 	$(GOOSE) check fuzz/driver.goose
 	python3 -m unittest discover -s fuzz -p 'test_*.py'
+	python3 tests/setup.py
 	$(GOOSE) check terminal.goose
 	$(GOOSE) check posix.goose
 	$(GOOSE) check tests/posix.goose

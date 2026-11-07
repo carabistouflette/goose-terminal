@@ -83,12 +83,14 @@ int main(void) {
     assert(dup2(pipefd[1], 1) == 1); close(pipefd[1]);
     int flags = fcntl(1, F_GETFL); assert(flags >= 0);
     assert(fcntl(1, F_SETFL, flags | O_NONBLOCK) == 0);
+    const int borrowed_flags = fcntl(1, F_GETFL);
+    assert(borrowed_flags >= 0 && (borrowed_flags & O_NONBLOCK));
     static uint8_t data[131072]; memset(data, 'x', sizeof data);
     calls = 0;
     assert(gt_posix_write(1, (gt_bytes){data, sizeof data}, meta) == 0);
     assert(values[0] > 0 && values[0] < (int64_t)sizeof data && !values[1] && calls == 1);
     assert(gt_posix_write(1, (gt_bytes){data, sizeof data}, meta) == 4 && values[1] == EAGAIN);
-    assert(fcntl(1, F_GETFL) == (flags | O_NONBLOCK)); same_mask(&before);
+    assert(fcntl(1, F_GETFL) == borrowed_flags); same_mask(&before);
     for (int error = 0; error < 3; ++error) {
         write_fault = error == 0 ? EINTR : error == 1 ? EAGAIN : EIO;
         assert(gt_posix_write(1, one, meta) == (error == 0 ? 3 : error == 1 ? 4 : 2));

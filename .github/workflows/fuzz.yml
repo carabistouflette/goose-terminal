@@ -2,6 +2,7 @@ name: Core API campaign
 on:
   push:
     branches: ['feat/alpha2-qualification']
+    paths: ['fuzz/**']
   workflow_dispatch:
     inputs:
       seconds:
