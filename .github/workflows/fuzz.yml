@@ -1,0 +1,40 @@
+name: Core API campaign
+on:
+  push:
+    branches: ['feat/alpha2-qualification']
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Campaign duration in seconds (case budget can stop earlier)
+        default: '600'
+        required: true
+permissions:
+  contents: read
+jobs:
+  campaign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .toolchain
+          key: goose-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('GOOSE_REVISION', 'scripts/setup-goose.sh') }}
+      - run: make setup
+      - name: Bounded core API campaign
+        env:
+          CAMPAIGN_SECONDS: ${{ inputs.seconds || '600' }}
+        run: python3 fuzz/run.py --goose .toolchain/goose/build/goose --seconds "$CAMPAIGN_SECONDS" --max-cases 1000000 --output .build/qualification-campaign
+      - name: Retain campaign evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: core-api-campaign
+          path: |
+            .build/qualification-campaign/results.json
+            .build/qualification-campaign/batches.jsonl
+            .build/qualification-campaign/build-*.log
+            .build/qualification-campaign/failure/**
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
