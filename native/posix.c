@@ -35,7 +35,8 @@ int64_t gt_posix_snapshot(int64_t fd, gt_meta meta) {
     return 0;
 }
 
-/* One syscall, with thread-local SIGPIPE protection. A blocking fd can block.
+/* One write syscall. Linux uses thread-local SIGPIPE protection; Darwin
+ * requires application-owned SIG_IGN. A blocking fd can block.
  * meta = written bytes, operation errno, signal-mask cleanup errno.
  * Status: 0 success (possibly short), 1 invalid, 2 OS, 3 EINTR, 4 EAGAIN.
  * Environment and descriptor ownership must remain stable during each call. */
@@ -46,6 +47,18 @@ int64_t gt_posix_write(int64_t fd, gt_bytes bytes, gt_meta meta) {
         meta.data[1] = EINVAL; return 1;
     }
     if (!bytes.len) return 0;
+#if defined(__APPLE__)
+    /* Darwin sends a process-directed SIGPIPE for a pipe write. A thread mask
+     * cannot protect other threads, and F_SETNOSIGPIPE mutates the shared file
+     * description. Require an explicit, stable application-owned ignore policy. */
+    struct sigaction pipe_action;
+    if (sigaction(SIGPIPE, NULL, &pipe_action) < 0) {
+        meta.data[1] = errno; return 2;
+    }
+    if (pipe_action.sa_handler != SIG_IGN) {
+        meta.data[1] = ENOTSUP; return 2;
+    }
+#else
     sigset_t pipe_set, old_mask, pending;
     if (sigemptyset(&pipe_set) < 0 || sigaddset(&pipe_set, SIGPIPE) < 0) {
         meta.data[1] = errno; return 2;
@@ -58,23 +71,36 @@ int64_t gt_posix_write(int64_t fd, gt_bytes bytes, gt_meta meta) {
         return 2;
     }
     int had_pipe = sigismember(&pending, SIGPIPE);
+#endif
     ssize_t written = write((int)fd, bytes.data, (size_t)bytes.len);
-    error = written < 0 ? errno : 0;
+    int write_error = written < 0 ? errno : 0;
     if (written >= 0) meta.data[0] = written;
-    meta.data[1] = error;
-    if (error == EPIPE && !had_pipe) {
-        const struct timespec zero = {0, 0};
-        /* Do not spin on unrelated signals. If interrupted, leave SIGPIPE
-         * blocked and explicitly report cleanup failure rather than deliver it. */
-        if (sigtimedwait(&pipe_set, NULL, &zero) < 0 && errno != EAGAIN) {
+    meta.data[1] = write_error;
+#if !defined(__APPLE__)
+    if (write_error == EPIPE && !had_pipe) {
+        /* SIG_IGN can discard SIGPIPE immediately. Only wait after proving
+         * a signal is pending. On Linux, a write-generated
+         * SIGPIPE belongs to this thread, so no other thread can consume it.
+         * Reentrant signal handlers / externally raced SIGPIPE are outside the
+         * contract. On cleanup failure keep SIGPIPE blocked and report it. */
+        if (sigpending(&pending) < 0) {
             meta.data[2] = errno;
             return 2;
+        }
+        if (sigismember(&pending, SIGPIPE)) {
+            int consumed = 0;
+            int wait_error = sigwait(&pipe_set, &consumed);
+            if (wait_error || consumed != SIGPIPE) {
+                meta.data[2] = wait_error ? wait_error : EIO;
+                return 2;
+            }
         }
     }
     meta.data[2] = pthread_sigmask(SIG_SETMASK, &old_mask, NULL);
     if (meta.data[2]) return 2;
-    if (!error) return 0;
-    if (error == EINTR) return 3;
-    if (error == EAGAIN || error == EWOULDBLOCK) return 4;
+#endif
+    if (!write_error) return 0;
+    if (write_error == EINTR) return 3;
+    if (write_error == EAGAIN || write_error == EWOULDBLOCK) return 4;
     return 2;
 }

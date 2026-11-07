@@ -68,13 +68,22 @@ for mode in ('probe', 'invalid'):
     assert not proc.returncode and not proc.stderr
     if mode == 'probe':
         assert proc.stdout == b'false false false 80 0\n'
+# Darwin requires explicit application-owned SIGPIPE policy. Python ignores it;
+# disabling subprocess restoration deliberately preserves that policy for the
+# session fixture. A separate launch with restoration proves default refusal.
+if sys.platform == 'darwin':
+    refused = subprocess.run([DRIVER, 'write', 'payload'], capture_output=True,
+                             env=ENV, restore_signals=True, timeout=10)
+    assert refused.returncode == 0 and not refused.stderr
+    assert refused.stdout == f'0 {errno.ENOTSUP} 0\n'.encode()
 # Serialize application updates; test shrink fallback and controlled cancellation.
 master, slave = pty.openpty()
 proc = None
 try:
     size(slave, 80)
     proc = subprocess.Popen([DRIVER, 'session'], stdin=subprocess.PIPE, stdout=slave,
-                            stderr=subprocess.PIPE, env=ENV)
+                            stderr=subprocess.PIPE, env=ENV,
+                            restore_signals=sys.platform != 'darwin')
     def update(command):
         proc.stdin.write(command+b'\n'); proc.stdin.flush()
         assert select.select([proc.stderr], [], [], 10)[0]

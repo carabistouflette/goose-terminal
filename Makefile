@@ -57,11 +57,9 @@ test-posix:
 	$(GOOSE) check posix.goose
 	$(GOOSE) build tests/posix.goose -O2 -o .build/posix
 	python3 tests/posix.py .build/posix
-	$(CC) -std=c11 -Wall -Wextra -Werror -pthread native/posix.c tests/native.c -Wl,--wrap=write,--wrap=pthread_sigmask,--wrap=sigtimedwait -o .build/native-test
-	./.build/native-test
+	python3 scripts/native-test.py --cc "$(CC)"
 test-posix-sanitize:
 	mkdir -p .build
 	$(GOOSE) build tests/posix.goose --standalone --debug --no-bce --cc ./scripts/sanitizer-cc.sh -o .build/posix-sanitize
 	python3 tests/posix.py .build/posix-sanitize
-	$(CC) -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-sanitize-recover=all -fno-pie -no-pie native/posix.c tests/native.c -Wl,--wrap=write,--wrap=pthread_sigmask,--wrap=sigtimedwait -o .build/native-sanitize
-	./.build/native-sanitize
+	python3 scripts/native-test.py --cc "$(CC)" --sanitize
