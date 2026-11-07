@@ -1,6 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regression checks for the recorder's output acceptance contract."""
 import unittest
+from unittest import mock
+import os
+from pathlib import Path
+import signal
+import sys
+import tempfile
+import time
 import record
 
 
@@ -33,6 +40,44 @@ class Acceptance(unittest.TestCase):
             record.validate('check', 'pty', 0, b'', b'Check complete\n', b'')
         with self.assertRaises(RuntimeError):
             record.validate('check', 'never', 0, b'', b'unexpected', b'')
+
+
+class Cleanup(unittest.TestCase):
+    @unittest.skipUnless(Path('/proc').is_dir(), 'Linux process-state assertion')
+    def test_exited_leader_with_descendant_held_pipes_is_cleaned(self):
+        with tempfile.TemporaryDirectory(prefix='consumer-cleanup-') as raw:
+            root = Path(raw); pid_file = root/'child.pid'; launcher = root/'honk'
+            launcher.write_text('#!'+sys.executable+'\n'
+                                'import os,subprocess,sys\n'
+                                'from pathlib import Path\n'
+                                'child=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"])\n'
+                                'Path(os.environ["PID_FILE"]).write_text(str(child.pid))\n')
+            launcher.chmod(0o755)
+            child = None
+            try:
+                with mock.patch.object(record, 'COMMAND_TIMEOUT', 0.3):
+                    with self.assertRaisesRegex(TimeoutError, 'PTY command timeout'):
+                        record.invoke(launcher, root, {**os.environ, 'PID_FILE': str(pid_file)}, 'check', 'pty')
+                child = int(pid_file.read_text())
+                deadline = time.monotonic()+3
+                while time.monotonic() < deadline:
+                    try:
+                        state = (Path('/proc')/str(child)/'stat').read_text().split(') ', 1)[1].split()[0]
+                    except FileNotFoundError:
+                        break
+                    if state == 'Z':
+                        break
+                    time.sleep(0.01)
+                else:
+                    self.fail('descendant retained after its leader exited')
+            finally:
+                if child is None and pid_file.exists():
+                    child = int(pid_file.read_text())
+                if child is not None:
+                    try:
+                        os.kill(child, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
 
 
 if __name__ == '__main__':

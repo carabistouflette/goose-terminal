@@ -25,6 +25,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 SEED = 0x7465726D
 MODES = ('never', 'plain', 'pty')
+COMMAND_TIMEOUT = 180
 SKIP = {'.git', '.build', '.toolchain', 'target', '__pycache__', 'node_modules'}
 
 
@@ -36,7 +37,7 @@ def captured(args, *, cwd=None, env=None):
     proc = subprocess.Popen([str(x) for x in args], cwd=cwd, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
     try:
-        stdout, stderr = proc.communicate(timeout=180)
+        stdout, stderr = proc.communicate(timeout=COMMAND_TIMEOUT)
     except BaseException:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -87,6 +88,7 @@ def invoke(honk, project, env, workload, mode):
     termios.tcsetattr(slave, termios.TCSANOW, attrs)
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
     proc = None
+    completed = False
     chunks = {'stdout': bytearray(), 'stderr': bytearray()}
     selector = selectors.DefaultSelector()
     try:
@@ -95,7 +97,7 @@ def invoke(honk, project, env, workload, mode):
         os.close(slave); slave = -1
         for fd, name in ((proc.stdout.fileno(), 'stdout'), (master, 'stderr')):
             os.set_blocking(fd, False); selector.register(fd, selectors.EVENT_READ, name)
-        deadline = time.monotonic()+180
+        deadline = time.monotonic()+COMMAND_TIMEOUT
         while selector.get_map():
             remaining = deadline-time.monotonic()
             if remaining <= 0:
@@ -116,11 +118,12 @@ def invoke(honk, project, env, workload, mode):
                     selector.unregister(key.fd)
         code = proc.wait(timeout=max(1, deadline-time.monotonic()))
         elapsed = time.perf_counter_ns()-start
+        completed = True
         return code, bytes(chunks['stdout']), bytes(chunks['stderr']), elapsed
     finally:
         selector.close()
         if proc:
-            if proc.poll() is None:
+            if not completed or proc.poll() is None:
                 try:
                     os.killpg(proc.pid, signal.SIGKILL)
                 except ProcessLookupError:
