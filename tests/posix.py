@@ -15,6 +15,15 @@ DRIVER = os.path.abspath(sys.argv[1])
 ENV = {**os.environ, 'TERM': 'xterm-256color', 'NO_COLOR': ''}
 
 
+def terminal():
+    master, slave = pty.openpty()
+    # Assert renderer bytes, independently of platform-default newline mapping.
+    attrs = termios.tcgetattr(slave)
+    attrs[1] &= ~termios.OPOST
+    termios.tcsetattr(slave, termios.TCSANOW, attrs)
+    return master, slave
+
+
 def size(fd, columns):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', 24, columns, 0, 0))
 
@@ -35,7 +44,7 @@ def drain(fd):
 
 
 def probe(columns, **env):
-    master, slave = pty.openpty()
+    master, slave = terminal()
     try:
         size(slave, columns)
         proc = subprocess.run([DRIVER, 'probe'], stdout=slave, stderr=subprocess.PIPE,
@@ -55,7 +64,7 @@ assert probe(80, NO_COLOR='1') == [b'true', b'false', b'true', b'80', b'0']
 assert probe(80, TERM='dumb') == [b'true', b'false', b'false', b'80', b'0']
 assert probe(80, TERM='') == [b'true', b'false', b'false', b'80', b'0']
 missing_env = dict(ENV); missing_env.pop('TERM', None)
-master, slave = pty.openpty()
+master, slave = terminal()
 try:
     size(slave, 80)
     proc = subprocess.run([DRIVER, 'probe'], stdout=slave, stderr=subprocess.PIPE, env=missing_env, timeout=10)
@@ -77,7 +86,7 @@ if sys.platform == 'darwin':
     assert refused.returncode == 0 and not refused.stderr
     assert refused.stdout == f'0 {errno.ENOTSUP} 0\n'.encode()
 # Serialize application updates; test shrink fallback and controlled cancellation.
-master, slave = pty.openpty()
+master, slave = terminal()
 proc = None
 try:
     size(slave, 80)
@@ -91,11 +100,11 @@ try:
         return drain(master)
     assert update(b'start') == b'\r\x1b[2K| working'
     size(slave, 4)
-    assert update(b'update') == b'\r\x1b[2K\r\n'
+    assert update(b'update') == b'\r\x1b[2K\n'
     size(slave, 100)
     assert update(b'start') == b'\r\x1b[2K| working'
-    assert update(b'cancel') == b'\r\x1b[2Kdone cancelled\r\n'
-    assert update(b'finish') == b'\r\x1b[2Kdone working\r\n'
+    assert update(b'cancel') == b'\r\x1b[2Kdone cancelled\n'
+    assert update(b'finish') == b'\r\x1b[2Kdone working\n'
     proc.stdin.close(); assert proc.wait(timeout=10) == 0
 finally:
     if proc and proc.poll() is None:
