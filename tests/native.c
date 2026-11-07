@@ -54,7 +54,20 @@ static void same_mask(const sigset_t *before) {
     for (int signal = 1; signal < 64; ++signal)
         assert(sigismember(before, signal) == sigismember(&after, signal));
 }
+static void raw_write_flag_control(void) {
+    int pipefd[2]; assert(pipe(pipefd) == 0);
+    const int before_flags = fcntl(pipefd[1], F_GETFL); assert(before_flags >= 0);
+    assert(write(pipefd[1], "x", 1) == 1);
+    const int after_flags = fcntl(pipefd[1], F_GETFL); assert(after_flags >= 0);
+    if (before_flags != after_flags) {
+        fprintf(stderr, "raw OS write F_GETFL: before=0x%x after=0x%x delta=0x%x\n",
+                (unsigned)before_flags, (unsigned)after_flags,
+                (unsigned)(before_flags ^ after_flags));
+    }
+    assert(close(pipefd[1]) == 0); assert(close(pipefd[0]) == 0);
+}
 int main(void) {
+    raw_write_flag_control();
     int64_t values[5]; gt_meta meta = {values, 3};
     gt_bytes empty = {NULL, 0}, one = {(const uint8_t *)"x", 1};
     assert(gt_posix_write(-1, one, meta) == 1 && values[0] == 0 && values[1] == EINVAL);
@@ -90,7 +103,14 @@ int main(void) {
     assert(gt_posix_write(1, (gt_bytes){data, sizeof data}, meta) == 0);
     assert(values[0] > 0 && values[0] < (int64_t)sizeof data && !values[1] && calls == 1);
     assert(gt_posix_write(1, (gt_bytes){data, sizeof data}, meta) == 4 && values[1] == EAGAIN);
-    assert(fcntl(1, F_GETFL) == borrowed_flags); same_mask(&before);
+    const int observed_flags = fcntl(1, F_GETFL);
+    if (observed_flags != borrowed_flags) {
+        fprintf(stderr, "adapter write F_GETFL: before=0x%x after=0x%x delta=0x%x O_NONBLOCK=0x%x O_APPEND=0x%x O_ACCMODE=0x%x\n",
+                (unsigned)borrowed_flags, (unsigned)observed_flags,
+                (unsigned)(borrowed_flags ^ observed_flags),
+                (unsigned)O_NONBLOCK, (unsigned)O_APPEND, (unsigned)O_ACCMODE);
+    }
+    assert(observed_flags == borrowed_flags); same_mask(&before);
     for (int error = 0; error < 3; ++error) {
         write_fault = error == 0 ? EINTR : error == 1 ? EAGAIN : EIO;
         assert(gt_posix_write(1, one, meta) == (error == 0 ? 3 : error == 1 ? 4 : 2));

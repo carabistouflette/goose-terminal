@@ -54,6 +54,9 @@ jobs:
             git rev-parse HEAD
             cat GOOSE_REVISION
           } | tee .build/qualification/platform.log
+      - name: macOS native fault preflight
+        if: runner.os == 'macOS'
+        run: python3 scripts/native-test.py --cc clang 2>&1 | tee .build/qualification/native-preflight.log
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .toolchain
