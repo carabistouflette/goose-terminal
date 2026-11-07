@@ -25,9 +25,11 @@ in normal and sanitizer builds. The shims use preprocessor substitutions in the
 test translation unit, so no GNU linker `--wrap` extension is required.
 
 On Linux the native adapter consumes a newly pending SIGPIPE with `sigwait`,
-after checking that it is actually pending. Ignored SIGPIPE is discarded by the
-OS and must not cause a wait. Linux tests preserve existing pending signals and
-the original mask, and inject pending/wait/restore failures. Signal-cleanup
+after checking that it is actually pending. Linux can queue an ignored SIGPIPE
+while it is blocked, so ignored disposition is not evidence of no pending signal.
+A separate synthetic EPIPE case generates no signal and proves the wait is
+skipped. Linux tests preserve existing pending signals and the original mask,
+and inject pending/wait/restore failures. Signal-cleanup
 failure is a fatal thread-state outcome.
 
 Darwin's kernel generates process-directed SIGPIPE for pipe writes. Its

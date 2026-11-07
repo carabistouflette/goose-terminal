@@ -24,8 +24,9 @@ values other than 1/2. Closed standard descriptors report EBADF on eligible
 nonempty calls (macOS signal-policy validation takes precedence).
 
 On Linux the calling thread temporarily blocks SIGPIPE, preserving any
-preexisting pending SIGPIPE. After EPIPE, a pending check avoids waiting when
-SIGPIPE is ignored and discarded by the OS. A newly pending signal is consumed
+preexisting pending SIGPIPE. After EPIPE, a pending check avoids waiting when no
+signal exists; EPIPE alone does not prove one was generated. Linux can queue
+ignored SIGPIPE while it is blocked. A newly pending signal is consumed
 with `sigwait` before the original mask is restored. No automatic retry or
 process-wide SIG_IGN is installed. `cleanup_error != 0` means the thread mask may
 remain changed; stop using that thread instead of treating it as ordinary

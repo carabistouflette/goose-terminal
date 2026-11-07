@@ -78,9 +78,10 @@ int64_t gt_posix_write(int64_t fd, gt_bytes bytes, gt_meta meta) {
     meta.data[1] = write_error;
 #if !defined(__APPLE__)
     if (write_error == EPIPE && !had_pipe) {
-        /* SIG_IGN can discard SIGPIPE immediately. Only wait after proving
-         * a signal is pending. On Linux, a write-generated
-         * SIGPIPE belongs to this thread, so no other thread can consume it.
+        /* An EPIPE result need not imply a pending signal (for example under
+         * syscall interposition). Wait only after observing one. On Linux a
+         * write-generated SIGPIPE belongs to this thread and cannot be consumed
+         * by another thread. Ignored SIGPIPE can still queue while blocked.
          * Reentrant signal handlers / externally raced SIGPIPE are outside the
          * contract. On cleanup failure keep SIGPIPE blocked and report it. */
         if (sigpending(&pending) < 0) {

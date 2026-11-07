@@ -12,7 +12,7 @@
 
 static int write_fault, calls;
 #if !defined(__APPLE__)
-static int restore_fault, wait_fault, pending_fault, pending_calls;
+static int restore_fault, wait_fault, pending_fault, pending_calls, wait_calls;
 #endif
 static ssize_t gt_test_write(int fd, const void *p, size_t n) {
     calls++;
@@ -30,6 +30,7 @@ static int gt_test_sigpending(sigset_t *set) {
     return sigpending(set);
 }
 static int gt_test_sigwait(const sigset_t *set, int *signal) {
+    wait_calls++;
     if (wait_fault) return EINTR;
     return sigwait(set, signal);
 }
@@ -100,7 +101,7 @@ int main(void) {
     same_mask(&before);
     assert(sigpending(&pending) == 0 && !sigismember(&pending, SIGPIPE));
     assert(sigaction(SIGPIPE, NULL, &after) == 0 && disposition.sa_handler == after.sa_handler);
-    /* Ignored SIGPIPE produces no pending signal; cleanup must not wait. */
+    /* Exercise ignored disposition too; Linux can queue it while blocked. */
     struct sigaction ignored; memset(&ignored, 0, sizeof ignored);
     ignored.sa_handler = SIG_IGN; assert(sigemptyset(&ignored.sa_mask) == 0);
     assert(sigaction(SIGPIPE, &ignored, NULL) == 0);
@@ -109,6 +110,12 @@ int main(void) {
     assert(sigpending(&pending) == 0 && !sigismember(&pending, SIGPIPE));
     assert(sigaction(SIGPIPE, &disposition, NULL) == 0);
 #if !defined(__APPLE__)
+    /* Synthetic EPIPE has no generated signal: the pending check must skip wait. */
+    write_fault = EPIPE; wait_calls = 0;
+    assert(gt_posix_write(1, one, meta) == 2 && values[0] == 0 && values[1] == EPIPE && values[2] == 0);
+    assert(wait_calls == 0); same_mask(&before);
+    assert(sigpending(&pending) == 0 && !sigismember(&pending, SIGPIPE));
+    write_fault = 0;
     /* Preserve a SIGPIPE that was already blocked and pending. */
     sigemptyset(&set); sigaddset(&set, SIGPIPE);
     assert(pthread_sigmask(SIG_BLOCK, &set, NULL) == 0); assert(raise(SIGPIPE) == 0);
