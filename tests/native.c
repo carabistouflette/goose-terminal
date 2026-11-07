@@ -94,6 +94,10 @@ int main(void) {
     int saved = dup(1); assert(saved >= 0);
     int pipefd[2]; assert(pipe(pipefd) == 0);
     assert(dup2(pipefd[1], 1) == 1); close(pipefd[1]);
+    /* Darwin records first-write history in F_GETFL (kernel FWASWRITTEN).
+     * Settle that OS bookkeeping during fixture setup, before lending the fd.
+     * The adapter must still preserve the entire observed flag word exactly. */
+    assert(write(1, "x", 1) == 1);
     int flags = fcntl(1, F_GETFL); assert(flags >= 0);
     assert(fcntl(1, F_SETFL, flags | O_NONBLOCK) == 0);
     const int borrowed_flags = fcntl(1, F_GETFL);

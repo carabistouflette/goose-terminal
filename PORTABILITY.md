@@ -64,3 +64,15 @@ The Darwin restriction is based on immutable Apple XNU source:
 [`write` generates process-directed SIGPIPE](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/sys_generic.c#L600),
 [`F_SETNOSIGPIPE` changes the fileglob](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/kern_descrip.c#L2944),
 and [`dup` shares that fileglob](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/kern_descrip.c#L560).
+
+## Descriptor-flag fixture
+
+Darwin's `F_GETFL` can expose the kernel's first-write history bit. The native
+raw-write control observed `0x1 -> 0x10001` without invoking this library; the
+adapter write observed the same `0x10000` delta. XNU
+[sets `FWASWRITTEN` after a successful write](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/sys_generic.c#L613)
+and [returns the flag word through `F_GETFL`](https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/kern_descrip.c#L2865).
+The fixture primes its pipe with a raw byte before establishing the borrowed
+flag snapshot. It then retains exact full-word equality across adapter writes;
+no status bit is masked or exempted. The separate raw-write control remains in
+the logs, distinguishing OS bookkeeping from library descriptor mutations.
