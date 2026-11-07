@@ -68,3 +68,11 @@ with the pinned compiler. The real Honk consumer passed its full normal suite,
 including default-output compatibility, self-packaging, seven PTY/redirect/failure
 regressions and progress-enabled SIGINT cleanup. Publication checks qualify
 tagged public imports separately from these local and clone checks.
+
+The Honk consumer also passes its full sanitizer suite and existing benchmark
+checks. A standalone consumer driver forces three-byte writes, initial EINTR,
+EAGAIN after a prefix and persistent EINTR, verifying exact output offsets,
+suppression and the 64-attempt cap in optimized and sanitized builds.
+Seven paired profiling batches retain 42 real command samples and 21 phase
+samples under bench/consumer/results/alpha1. No hot-path optimization or
+unqualified comparative speed claim follows from overlapping timing ranges.

@@ -42,3 +42,6 @@ variables are not copied into the report. Temporary fixture paths appear in
 Honk's retained stdout. Raw results include slower runs. These measurements
 include staging, compiler and subprocess startup and should not be interpreted
 as isolated renderer overhead, a speed ranking or production throughput.
+
+The [alpha.1 recording](results/alpha1/README.md) retains seven complete batches
+and explains the limits of the observed timing variation.
