@@ -51,7 +51,14 @@ static int gt_test_sigwait(const sigset_t *set, int *signal) {
 
 static void same_mask(const sigset_t *before) {
     sigset_t after; assert(pthread_sigmask(SIG_SETMASK, NULL, &after) == 0);
-    for (int signal = 1; signal < 64; ++signal)
+#if defined(__APPLE__)
+    const int max_signal = 32;
+#elif defined(NSIG)
+    const int max_signal = NSIG < 64 ? NSIG : 64;
+#else
+    const int max_signal = 64;
+#endif
+    for (int signal = 1; signal < max_signal; ++signal)
         assert(sigismember(before, signal) == sigismember(&after, signal));
 }
 static void raw_write_flag_control(void) {
