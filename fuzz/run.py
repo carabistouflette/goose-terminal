@@ -186,7 +186,11 @@ def main():
     args=parser.parse_args()
     if platform.system()!='Linux': parser.error('resource controls qualified only on Linux')
     if not 1<=args.seconds<=86400 or not 1<=args.max_cases<=10000000: parser.error('budget out of range')
-    goose=args.goose.resolve();output=args.output.resolve();output.mkdir(parents=True,exist_ok=False);before=identity(goose)
+    goose=args.goose.resolve();output=args.output.resolve();output.mkdir(parents=True,exist_ok=False)
+    try: before=identity(goose)
+    except BaseException as error:
+        (output/'results.json').write_text(json.dumps(dict(cases=0,failure=dict(category='identity-rejected',exception=repr(error))),indent=2)+'\n')
+        raise SystemExit('identity rejected; evidence in '+str(output))
     replay=None
     if args.replay:
         if args.replay.stat().st_size>33554432: parser.error('replay exceeds32MiB')
@@ -227,13 +231,15 @@ def main():
             failure=dict(details,exception=repr(error));failure['category']=failure.get('category') if failure.get('category')!='pass' else 'campaign-or-timeout-failure'
             failure_bundle(output,scratch,last_cases,failure)
         effective=json.loads((scratch/'limits.json').read_text()) if (scratch/'limits.json').exists() else {}
-    drift=identity(goose)!=before or any(sha(p.read_bytes())!=hashes[m] for m,p in binaries.items())
-    report=dict(source=before,c_compilers={'normal':command(['gcc','--version']).decode(),'sanitizer':command([os.environ.get('SANITIZER_CC','gcc'),'--version']).decode()},binaries_sha256=hashes,build_flags=flags,seed=args.seed,requested_seconds=args.seconds,seed_case_count=len(seeds),stop_reason="replay" if replay is not None else "case-budget" if total>=args.max_cases else "duration",
+    identity_error=None
+    try: drift=identity(goose)!=before or any(sha(p.read_bytes())!=hashes[m] for m,p in binaries.items())
+    except BaseException as error: drift=True;identity_error=repr(error)
+    report=dict(source=before,c_compilers=before['c_backends'],binaries_sha256=hashes,build_flags=flags,seed=args.seed,requested_seconds=args.seconds,seed_case_count=len(seeds),stop_reason="failure" if failure else "identity-drift" if drift else "replay" if replay is not None else "case-budget" if total>=args.max_cases else "duration",
                 elapsed_seconds=time.monotonic()-started,max_cases=args.max_cases,cases=total,batches=batches,
                 per_mode_cases=per_mode,per_target_cases=per_target,effective_child_limits=effective,
                 platform=platform.platform(),memory_isolation='No hard RSS or virtual-memory containment qualified',
                 scope='Mutation-based differential core API testing; not coverage-guided; adapter behavior tested separately',
-                failure=failure,identity_drift=drift)
+                failure=failure,identity_drift=drift,identity_error=identity_error)
     (output/'results.json').write_text(json.dumps(report,indent=2)+'\n')
     if failure or drift or not total or any(not n for n in per_mode.values()) or (replay is None and any(not n for n in per_target.values())): raise SystemExit('campaign failed; evidence in '+str(output))
     print(f'Campaign passed: {total} cases x3 modes, {batches} batches, {report["elapsed_seconds"]:.1f}s')

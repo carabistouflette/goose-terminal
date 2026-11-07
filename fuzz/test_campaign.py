@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import run as campaign
 
 
@@ -47,6 +48,26 @@ class Campaign(unittest.TestCase):
             restored=[dict(v,cells=[bytes.fromhex(c) for c in v['cells']]) for v in values]
             self.assertEqual(campaign.encode(restored),campaign.encode(cases))
             self.assertEqual((path/'failure/expected.bin').read_bytes(),campaign.expected(cases))
+
+    def test_startup_identity_rejection_is_reported(self):
+        with tempfile.TemporaryDirectory() as raw:
+            output=Path(raw)/'result'
+            with patch.object(sys,'argv',['run','--goose','/absent','--output',str(output)]), patch.object(campaign,'identity',side_effect=ValueError('pin mismatch')):
+                with self.assertRaises(SystemExit): campaign.main()
+            self.assertEqual(json.loads((output/'results.json').read_text())['failure']['category'],'identity-rejected')
+
+    def test_post_run_identity_error_preserves_report(self):
+        with tempfile.TemporaryDirectory() as raw:
+            output=Path(raw)/'result'
+            def build(args):
+                Path(args[-1]).write_bytes(b'driver');return b'compiled'
+            def execute(binary,cases,scratch,mode):
+                (scratch/'limits.json').write_text('{}');return dict(category='pass',mode=mode,cases=len(cases))
+            with patch.object(sys,'argv',['run','--goose','/absent','--output',str(output),'--max-cases','5']), patch.object(campaign,'identity',side_effect=[dict(c_backends={}),ValueError('checkout dirty')]), patch.object(campaign,'command',side_effect=build), patch.object(campaign,'execute',side_effect=execute):
+                with self.assertRaises(SystemExit): campaign.main()
+            report=json.loads((output/'results.json').read_text())
+            self.assertTrue(report['identity_drift']);self.assertIn('checkout dirty',report['identity_error'])
+            self.assertEqual(report['cases'],5);self.assertEqual(report['stop_reason'],'identity-drift')
 
     def test_build_timeout_terminates_owned_group(self):
         with tempfile.TemporaryDirectory() as raw:
