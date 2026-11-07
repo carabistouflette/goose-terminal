@@ -52,9 +52,16 @@ class Campaign(unittest.TestCase):
     def test_startup_identity_rejection_is_reported(self):
         with tempfile.TemporaryDirectory() as raw:
             output=Path(raw)/'result'
-            with patch.object(sys,'argv',['run','--goose','/absent','--output',str(output)]), patch.object(campaign,'identity',side_effect=ValueError('pin mismatch')):
+            with patch.object(sys,'argv',['run','--goose','/absent','--output',str(output)]), patch.object(campaign.platform,'system',return_value='Linux'), patch.object(campaign,'identity',side_effect=ValueError('pin mismatch')):
                 with self.assertRaises(SystemExit): campaign.main()
             self.assertEqual(json.loads((output/'results.json').read_text())['failure']['category'],'identity-rejected')
+
+    def test_campaign_rejects_non_linux_platform(self):
+        with tempfile.TemporaryDirectory() as raw:
+            output=Path(raw)/'result'
+            with patch.object(sys,'argv',['run','--goose','/absent','--output',str(output)]), patch.object(campaign.platform,'system',return_value='Darwin'), patch('sys.stderr'):
+                with self.assertRaises(SystemExit): campaign.main()
+            self.assertFalse(output.exists())
 
     def test_post_run_identity_error_preserves_report(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -63,7 +70,7 @@ class Campaign(unittest.TestCase):
                 Path(args[-1]).write_bytes(b'driver');return b'compiled'
             def execute(binary,cases,scratch,mode):
                 (scratch/'limits.json').write_text('{}');return dict(category='pass',mode=mode,cases=len(cases))
-            with patch.object(sys,'argv',['run','--goose','/absent','--output',str(output),'--max-cases','5']), patch.object(campaign,'identity',side_effect=[dict(c_backends={}),ValueError('checkout dirty')]), patch.object(campaign,'command',side_effect=build), patch.object(campaign,'execute',side_effect=execute):
+            with patch.object(sys,'argv',['run','--goose','/absent','--output',str(output),'--max-cases','5']), patch.object(campaign.platform,'system',return_value='Linux'), patch.object(campaign,'identity',side_effect=[dict(c_backends={}),ValueError('checkout dirty')]), patch.object(campaign,'command',side_effect=build), patch.object(campaign,'execute',side_effect=execute):
                 with self.assertRaises(SystemExit): campaign.main()
             report=json.loads((output/'results.json').read_text())
             self.assertTrue(report['identity_drift']);self.assertIn('checkout dirty',report['identity_error'])
