@@ -85,11 +85,16 @@ class Campaign(unittest.TestCase):
                     'p=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"]);'
                     f'Path({str(pidfile)!r}).write_text(str(p.pid));time.sleep(60)')
             pid=None
+            terminated=False
+            def read_pid():
+                try: return int(pidfile.read_text())
+                except (FileNotFoundError,ValueError): return None
             try:
                 with self.assertRaises(subprocess.TimeoutExpired):
                     campaign.command([sys.executable,'-c',source],timeout=1)
                 self.assertTrue(pidfile.exists(),'the descendant must start before timeout')
-                pid=int(pidfile.read_text())
+                pid=read_pid()
+                self.assertIsNotNone(pid,'the descendant must publish its PID before timeout')
                 status=Path(f'/proc/{pid}/stat')
                 # SIGKILL delivery to the group is asynchronous. Waiting for
                 # its leader does not reap (or synchronize with) descendants.
@@ -97,17 +102,23 @@ class Campaign(unittest.TestCase):
                 # still-scheduled dying process as a leaked live child.
                 deadline=time.monotonic()+2
                 while True:
-                    try: state=status.read_text().rsplit(')',1)[1].split()[0]
-                    except FileNotFoundError: break
-                    if state in ('Z','X'): break
+                    try:
+                        fields=status.read_text().rpartition(')')[2].split()
+                        state=fields[0] if fields else 'unavailable'
+                    except FileNotFoundError:
+                        terminated=True
+                        break
+                    if state in ('Z','X'):
+                        terminated=True
+                        break
                     if time.monotonic()>=deadline:
                         self.fail(f'descendant {pid} is still live after group timeout: {state}')
                     time.sleep(.01)
             finally:
                 # A broken group-kill implementation must fail the assertion
                 # without leaving the test's 60-second child behind.
-                if pid is None and pidfile.exists(): pid=int(pidfile.read_text())
-                if pid is not None:
+                if pid is None: pid=read_pid()
+                if pid is not None and not terminated:
                     try: os.kill(pid,signal.SIGKILL)
                     except ProcessLookupError: pass
 
