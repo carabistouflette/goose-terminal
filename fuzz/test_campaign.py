@@ -4,9 +4,11 @@ import json
 import os
 from pathlib import Path
 import random
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 import run as campaign
@@ -82,12 +84,32 @@ class Campaign(unittest.TestCase):
             source=('import subprocess,sys,time;from pathlib import Path;'
                     'p=subprocess.Popen([sys.executable,"-c","import time;time.sleep(60)"]);'
                     f'Path({str(pidfile)!r}).write_text(str(p.pid));time.sleep(60)')
-            with self.assertRaises(subprocess.TimeoutExpired):
-                campaign.command([sys.executable,'-c',source],timeout=.3)
-            if pidfile.exists():
+            pid=None
+            try:
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    campaign.command([sys.executable,'-c',source],timeout=1)
+                self.assertTrue(pidfile.exists(),'the descendant must start before timeout')
                 pid=int(pidfile.read_text())
                 status=Path(f'/proc/{pid}/stat')
-                if status.exists(): self.assertIn(status.read_text().split()[2],('Z','X'))
+                # SIGKILL delivery to the group is asynchronous. Waiting for
+                # its leader does not reap (or synchronize with) descendants.
+                # Observe termination with a deadline, rather than treating a
+                # still-scheduled dying process as a leaked live child.
+                deadline=time.monotonic()+2
+                while True:
+                    try: state=status.read_text().rsplit(')',1)[1].split()[0]
+                    except FileNotFoundError: break
+                    if state in ('Z','X'): break
+                    if time.monotonic()>=deadline:
+                        self.fail(f'descendant {pid} is still live after group timeout: {state}')
+                    time.sleep(.01)
+            finally:
+                # A broken group-kill implementation must fail the assertion
+                # without leaving the test's 60-second child behind.
+                if pid is None and pidfile.exists(): pid=int(pidfile.read_text())
+                if pid is not None:
+                    try: os.kill(pid,signal.SIGKILL)
+                    except ProcessLookupError: pass
 
 
 if __name__=='__main__': unittest.main()
