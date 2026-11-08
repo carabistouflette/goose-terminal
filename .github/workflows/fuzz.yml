@@ -1,8 +1,9 @@
 name: Core API campaign
 on:
   push:
-    branches: ['feat/alpha2-qualification']
-    paths: ['fuzz/**']
+    paths: ['fuzz/**', 'terminal.goose', 'tests/oracle.py', 'scripts/sanitizer-cc.sh', 'scripts/setup-goose.sh', 'GOOSE_REVISION', '.github/workflows/fuzz.yml']
+  pull_request:
+    paths: ['fuzz/**', 'terminal.goose', 'tests/oracle.py', 'scripts/sanitizer-cc.sh', 'scripts/setup-goose.sh', 'GOOSE_REVISION', '.github/workflows/fuzz.yml']
   workflow_dispatch:
     inputs:
       seconds:
@@ -24,8 +25,9 @@ jobs:
       - run: make setup
       - name: Bounded core API campaign
         env:
-          CAMPAIGN_SECONDS: ${{ inputs.seconds || '600' }}
-        run: python3 fuzz/run.py --goose .toolchain/goose/build/goose --seconds "$CAMPAIGN_SECONDS" --max-cases 1000000 --output .build/qualification-campaign
+          CAMPAIGN_SECONDS: ${{ inputs.seconds || '30' }}
+          CAMPAIGN_CASES: ${{ github.event_name == 'workflow_dispatch' && '1000000' || '4000' }}
+        run: python3 fuzz/run.py --goose .toolchain/goose/build/goose --seconds "$CAMPAIGN_SECONDS" --max-cases "$CAMPAIGN_CASES" --output .build/qualification-campaign
       - name: Retain campaign evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

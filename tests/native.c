@@ -54,7 +54,7 @@ static void same_mask(const sigset_t *before) {
 #if defined(__APPLE__)
     const int max_signal = 32;
 #elif defined(NSIG)
-    const int max_signal = NSIG < 64 ? NSIG : 64;
+    const int max_signal = NSIG;
 #else
     const int max_signal = 64;
 #endif

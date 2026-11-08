@@ -7,6 +7,9 @@ change. Do not commit binaries, caches, credentials, or private workspace notes.
 Use the exact compiler in GOOSE_REVISION. Run `make setup`, then
 `make format check test test-debug test-sanitize test-posix test-posix-sanitize bench-smoke`. An existing pinned
 compiler can be supplied with `GOOSE=/absolute/path/to/goose`.
+The Linux mutation campaign additionally requires the compiler binary at
+`/absolute/checkout/build/goose`, with its clean pinned source checkout available
+for identity verification; relocated standalone binaries are rejected.
 
 Keep the interface small, rendering deterministic, buffers caller-owned, and
 errors explicit. Preserve output clearing on failure, aggregate resource limits,

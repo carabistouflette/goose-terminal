@@ -9,17 +9,26 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def english_locale():
-    result = subprocess.run(['locale', '-a'], capture_output=True, text=True, check=True)
+    try:
+        result = subprocess.run(['locale', '-a'], capture_output=True, text=True, check=True)
+    except (OSError,subprocess.CalledProcessError):
+        return None
     return next((name for name in result.stdout.splitlines()
                  if name.lower().replace('-', '').replace('.', '') == 'en_usutf8'), None)
 
 
 class Setup(unittest.TestCase):
+    def test_locale_discovery_can_be_unavailable(self):
+        for error in (FileNotFoundError('locale'),subprocess.CalledProcessError(1,['locale','-a'])):
+            with self.subTest(error=type(error).__name__),patch('subprocess.run',side_effect=error):
+                self.assertIsNone(english_locale())
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='terminal-setup-')
         self.addCleanup(self.temp.cleanup)

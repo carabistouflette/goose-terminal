@@ -9,7 +9,7 @@ Native writes and signal behavior are tested separately by POSIX qualification.
 python3 fuzz/run.py --goose /absolute/checkout/build/goose --seconds 600 --max-cases 1000000 --output .build/campaign-new
 ```
 
-The compiler must be in a clean Git checkout at GOOSE_REVISION and report a
+The compiler must be at `<checkout>/build/goose` in a clean Git checkout at GOOSE_REVISION and report a
 matching version. Its binary hash, checkout commit, actual C-backend versions
 and hashes, source hashes, flags, case counts and effective limits are retained.
 A binary hash records identity, not a reproducible-build attestation.
@@ -19,6 +19,13 @@ capability-policy combinations, exact and overflowing table budgets, label
 limits and large counters. Composed mutations can reach combinations beyond
 individual seeds. Every batch executes optimized, checked-debug and ASan/UBSan
 binaries against a separate Python arbitrary-precision/byte reference.
+
+A heterogeneous multi-row seed makes escaped width affect column padding;
+table mutations also vary cells independently. Unit checks reject an identity
+mutation generator. These controls address known gaps, not complete layout coverage.
+Relevant PRs and pushes run a bounded campaign (30 seconds or 4,000 cases,
+whichever stops first); manual dispatch retains the longer budget. Actual
+counts and stop reasons determine the executed scope.
 
 Duration OR case budget stops the run; actual elapsed time, stop reason,
 per-function and per-mode counts are reported. A brief smoke cannot qualify

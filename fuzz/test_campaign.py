@@ -30,6 +30,31 @@ class Campaign(unittest.TestCase):
             v=campaign.mutate(rng,campaign.mutate(rng,rng.choice(seeds)))
             campaign.encode([v])
 
+    def test_mutations_explore_without_changing_seeds(self):
+        seeds=campaign.corpus(); saved=copy.deepcopy(seeds)
+        rng=random.Random(42)
+        for op in range(5):
+            seed=next(v for v in seeds if v['op']==op)
+            changed=[campaign.mutate(rng,seed) for _ in range(128)]
+            self.assertTrue(any(v!=seed for v in changed),f'operation {op} never mutates')
+        self.assertEqual(seeds,saved)
+
+    def test_table_seeds_exercise_escaped_padding(self):
+        for case in campaign.corpus():
+            if case['op']!=1 or case['a']!=2 or len(case['cells'])!=4: continue
+            cells=case['cells']
+            if cells==[b'\\',b'x',b'y',b'z']:
+                # The second row needs padding according to the escaped width
+                # of the first column, rather than its raw byte length.
+                self.assertIn(b'y  ',campaign.expected([case]))
+                break
+        else: self.fail('missing heterogeneous escaped-padding table seed')
+
+    def test_relocated_compiler_has_actionable_identity_error(self):
+        with patch.object(campaign,'command',side_effect=subprocess.CalledProcessError(128,['git'])):
+            with self.assertRaisesRegex(ValueError,'checkout/build/goose'):
+                campaign.identity(Path('/relocated/bin/goose'))
+
     def test_replay_rejects_invalid_driver_encoding(self):
         base=campaign.corpus()[0]
         bad=[dict(base,op=5),dict(base,a=5),dict(base,color=2),dict(base,cells=[b'x'*65537]),

@@ -48,7 +48,9 @@ def command(args,timeout=180):
 def identity(goose):
     expected=(ROOT/'GOOSE_REVISION').read_text().strip()
     compiler_source=goose.parent.parent
-    actual=command(['git','-C',compiler_source,'rev-parse','HEAD']).decode().strip()
+    try: actual=command(['git','-C',compiler_source,'rev-parse','HEAD']).decode().strip()
+    except subprocess.CalledProcessError as error:
+        raise ValueError('campaign compiler must use a clean checkout/build/goose layout at GOOSE_REVISION') from error
     if actual!=expected or command(['git','-C',compiler_source,'status','--porcelain']):
         raise ValueError('compiler source must be a clean checkout at GOOSE_REVISION')
     version=command([goose,'version']).decode().strip()
@@ -71,6 +73,8 @@ def identity(goose):
 def corpus():
     values = [dict(op=op,color=0,live=0,final=0,columns=80,a=2 if op==1 else 0,b=1,c=12,
                    cells=[] if op==4 else [b'a',b'\\\x1b\xff'] if op==1 else [b'hello']) for op in range(5)]
+    # Heterogeneous rows force escaped width to affect non-final-column padding.
+    values += [dict(values[1],cells=[b'\\',b'x',b'y',b'z'])]
     values += [dict(values[0],cells=[bytes([c])]) for c in range(256)]
     values += [dict(values[1],a=1,columns=512,cells=[b'a'*256]*256),
                dict(values[1],a=1,columns=512,cells=[b'a'*256]*255+[b'a'*257]),
@@ -95,7 +99,8 @@ def mutate(rng, original):
         case['a']=rng.randrange(5) if case['op']==0 else rng.randrange(2) if case['op']==4 else rng.choice(BOUNDARIES)
     elif case['op'] != 4:
         if choice == 4 and case['op']==1:
-            case['cells']=[rng.choice((b'',b'x',b'\x1b',b'\\'))]*rng.choice((0,1,2,16,17,255,256,257,1024,1025))
+            count=rng.choice((0,1,2,16,17,255,256,257,1024,1025))
+            case['cells']=[rng.choice((b'',b'x',b'\x1b',b'\\')) for _ in range(count)]
         elif case['cells']:
             index=rng.randrange(len(case['cells']));data=case['cells'][index]
             if choice==5: data=bytes([rng.randrange(256)])*rng.choice((0,1,4095,4096,4097,16384,65536))
