@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Git index flags and pinned hashes are byte protocols, not locale ranges.
+export LC_ALL=C
 cd "$(dirname "$0")/.."
 revision=$(cat GOOSE_REVISION)
 if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then

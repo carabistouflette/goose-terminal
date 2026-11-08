@@ -4,19 +4,76 @@ on:
   pull_request:
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.runner }} / ${{ matrix.cc }}
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
-        cc: [gcc, clang]
+        include:
+          - runner: ubuntu-24.04
+            cc: gcc
+            system: Linux
+            architecture: x86_64
+          - runner: ubuntu-24.04
+            cc: clang
+            system: Linux
+            architecture: x86_64
+          - runner: ubuntu-24.04-arm
+            cc: gcc
+            system: Linux
+            architecture: aarch64
+          - runner: ubuntu-24.04-arm
+            cc: clang
+            system: Linux
+            architecture: aarch64
+          - runner: macos-15
+            cc: clang
+            system: Darwin
+            architecture: arm64
     env:
       SANITIZER_CC: ${{ matrix.cc }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Assert native execution architecture
+        env:
+          EXPECTED_SYSTEM: ${{ matrix.system }}
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          mkdir -p .build/qualification
+          test "$(uname -s)" = "$EXPECTED_SYSTEM"
+          test "$(uname -m)" = "$EXPECTED_ARCHITECTURE"
+          {
+            uname -a
+            ${{ matrix.cc }} --version
+            python3 --version
+            git rev-parse HEAD
+            cat GOOSE_REVISION
+          } | tee .build/qualification/platform.log
+      - name: macOS native fault preflight
+        if: runner.os == 'macOS'
+        run: python3 scripts/native-test.py --cc clang 2>&1 | tee .build/qualification/native-preflight.log
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .toolchain
-          key: goose-${{ runner.os }}-${{ hashFiles('GOOSE_REVISION', 'scripts/setup-goose.sh') }}
+          key: goose-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('GOOSE_REVISION', 'scripts/setup-goose.sh') }}
       - run: make setup
-      - run: make check test test-debug test-sanitize test-posix test-posix-sanitize bench-smoke CC=${{ matrix.cc }}
+      - name: Core qualification
+        run: make check test test-debug test-sanitize CC=${{ matrix.cc }} 2>&1 | tee .build/qualification/core.log
+      - name: Optional POSIX adapter qualification
+        run: make test-posix test-posix-sanitize CC=${{ matrix.cc }} 2>&1 | tee .build/qualification/posix.log
+      - name: Benchmark execution smoke
+        run: make bench-smoke CC=${{ matrix.cc }} 2>&1 | tee .build/qualification/bench.log
+      - name: Retain qualification logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: qualification-${{ matrix.runner }}-${{ matrix.cc }}
+          path: .build/qualification/*.log
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

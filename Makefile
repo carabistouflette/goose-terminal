@@ -4,9 +4,12 @@ GOOSE ?= .toolchain/goose/build/goose
 setup:
 	./scripts/setup-goose.sh
 format:
-	$(GOOSE) format terminal.goose posix.goose tests examples bench
+	$(GOOSE) format terminal.goose posix.goose tests examples bench fuzz
 check:
-	$(GOOSE) format --check terminal.goose posix.goose tests examples bench
+	$(GOOSE) format --check terminal.goose posix.goose tests examples bench fuzz
+	$(GOOSE) check fuzz/driver.goose
+	python3 -m unittest discover -s fuzz -p 'test_*.py'
+	python3 tests/setup.py
 	$(GOOSE) check terminal.goose
 	$(GOOSE) check posix.goose
 	$(GOOSE) check tests/posix.goose
@@ -20,23 +23,23 @@ check:
 	python3 -m unittest discover -s bench/consumer -p 'test_*.py'
 test: test-oracle
 	mkdir -p .build
-	$(GOOSE) run tests/api.goose
-	$(GOOSE) build tests/api.goose -O2 -o .build/api
+	$(GOOSE) run --cc "$(CC)" tests/api.goose
+	$(GOOSE) build --cc "$(CC)" tests/api.goose -O2 -o .build/api
 	./.build/api
-	$(GOOSE) run tests/overloads.goose
+	$(GOOSE) run --cc "$(CC)" tests/overloads.goose
 	python3 tests/ownership.py $(GOOSE)
-	$(GOOSE) run examples/status.goose
+	$(GOOSE) run --cc "$(CC)" examples/status.goose
 test-debug:
 	mkdir -p .build
-	$(GOOSE) build tests/api.goose --debug --no-bce -o .build/api-debug
+	$(GOOSE) build --cc "$(CC)" tests/api.goose --debug --no-bce -o .build/api-debug
 	./.build/api-debug
-	$(GOOSE) build tests/oracle.goose --debug --no-bce -o .build/oracle-debug
+	$(GOOSE) build --cc "$(CC)" tests/oracle.goose --debug --no-bce -o .build/oracle-debug
 	python3 tests/oracle.py .build/oracle-debug
 
 .PHONY: test-oracle
 test-oracle:
 	mkdir -p .build
-	$(GOOSE) build tests/oracle.goose -O2 -o .build/oracle
+	$(GOOSE) build --cc "$(CC)" tests/oracle.goose -O2 -o .build/oracle
 	python3 tests/oracle.py .build/oracle
 
 test-sanitize:
@@ -48,20 +51,27 @@ test-sanitize:
 
 bench-smoke:
 	mkdir -p .build
-	$(GOOSE) build bench/driver.goose -O2 --cc gcc -o .build/bench
+	$(GOOSE) build bench/driver.goose -O2 --cc "$(CC)" -o .build/bench
 	./.build/bench 10
 
 .PHONY: test-posix test-posix-sanitize
 test-posix:
 	mkdir -p .build
 	$(GOOSE) check posix.goose
-	$(GOOSE) build tests/posix.goose -O2 -o .build/posix
+	$(GOOSE) build --cc "$(CC)" tests/posix.goose -O2 -o .build/posix
 	python3 tests/posix.py .build/posix
-	$(CC) -std=c11 -Wall -Wextra -Werror -pthread native/posix.c tests/native.c -Wl,--wrap=write,--wrap=pthread_sigmask,--wrap=sigtimedwait -o .build/native-test
-	./.build/native-test
+	python3 scripts/native-test.py --cc "$(CC)"
 test-posix-sanitize:
 	mkdir -p .build
 	$(GOOSE) build tests/posix.goose --standalone --debug --no-bce --cc ./scripts/sanitizer-cc.sh -o .build/posix-sanitize
 	python3 tests/posix.py .build/posix-sanitize
-	$(CC) -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -fno-sanitize-recover=all -fno-pie -no-pie native/posix.c tests/native.c -Wl,--wrap=write,--wrap=pthread_sigmask,--wrap=sigtimedwait -o .build/native-sanitize
-	./.build/native-sanitize
+	python3 scripts/native-test.py --cc "$(CC)" --sanitize
+
+
+.PHONY: fuzz-smoke fuzz-campaign
+fuzz-smoke:
+	mkdir -p .build
+	campaign_dir=$$(mktemp -d .build/campaign-smoke-XXXXXX); python3 fuzz/run.py --goose "$(abspath $(GOOSE))" --seconds 3 --max-cases 1500 --output "$$campaign_dir/run"
+fuzz-campaign:
+	mkdir -p .build
+	campaign_dir=$$(mktemp -d .build/campaign-XXXXXX); python3 fuzz/run.py --goose "$(abspath $(GOOSE))" --seconds 600 --max-cases 1000000 --output "$$campaign_dir/run"
